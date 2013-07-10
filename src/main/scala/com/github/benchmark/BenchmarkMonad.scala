@@ -24,3 +24,16 @@ object BenchmarkMonad {
     }
   }
 }
+
+case class BenchmarkMonadT[F[_], A](run: F[BenchmarkMonad[A]]) {
+  self =>
+
+  import scalaz.{Functor, Monad}
+
+  def map[B](f: A => B)(implicit F: Functor[F]): BenchmarkMonadT[F, B] = new BenchmarkMonadT[F, B](mapO(_ map f))
+
+  def flatMap[B](f: A => BenchmarkMonadT[F, B])(implicit F: Monad[F]): BenchmarkMonadT[F, B] = new BenchmarkMonadT[F, B](
+    F.bind(self.run){ v => f(v.value).run }
+  )
+  private def mapO[B](f: BenchmarkMonad[A] => B)(implicit F: Functor[F]) = F.map(run)(f)
+}
