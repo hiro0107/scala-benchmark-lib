@@ -3,6 +3,19 @@ package com.github.benchmark
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext
 
+/**
+ * A monad for benchmarking.
+ *
+ * {{{
+ *  import com.github.benchmark.BenchmarkMonad._
+ *  val result: BenchmarkMonad[(String, String)] =
+ *    for(a: String <- run(logic());
+ *        b: String <- run(logic2())) yield {
+ *       (a, b)
+ *    }
+ *  
+ * }}}
+ */
 case class BenchmarkMonad[A](value: A, stat: Statistics) {
   def flatMap[B](f: (A) => BenchmarkMonad[B]): BenchmarkMonad[B] = {
     val bench = f(value)
@@ -10,6 +23,10 @@ case class BenchmarkMonad[A](value: A, stat: Statistics) {
   }
   def map[B](f: (A) => B): BenchmarkMonad[B] = BenchmarkMonad(f(value), stat)
 }
+
+/**
+ * A monad for benchmarking.
+ */
 object BenchmarkMonad {
   def run[T](f: => T): BenchmarkMonad[T] = {
     val time = System.currentTimeMillis
@@ -25,6 +42,9 @@ object BenchmarkMonad {
   }
 }
 
+/**
+ * A monad transformer for BenchmarkMonad
+ */
 case class BenchmarkMonadT[F[_], A](run: F[BenchmarkMonad[A]]) {
   self =>
 
