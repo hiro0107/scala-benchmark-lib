@@ -16,28 +16,29 @@ import scala.concurrent.ExecutionContext
  *  
  * }}}
  */
-case class BenchmarkMonad[A](value: A, stat: Statistics) {
-  def flatMap[B](f: (A) => BenchmarkMonad[B]): BenchmarkMonad[B] = {
+case class BenchmarkMonad[A, STAT <: StatisticsLike[STAT]](value: A, stat: STAT) {
+  def flatMap[B](f: (A) => BenchmarkMonad[B, STAT]): BenchmarkMonad[B, STAT] = {
     val bench = f(value)
-    BenchmarkMonad(bench.value, stat + bench.stat)
+    val stat2: STAT = bench.stat
+    BenchmarkMonad(bench.value, stat.add(stat2))
   }
-  def map[B](f: (A) => B): BenchmarkMonad[B] = BenchmarkMonad(f(value), stat)
+  def map[B](f: (A) => B): BenchmarkMonad[B, STAT] = BenchmarkMonad(f(value), stat)
 }
 
 /**
  * A monad for benchmarking.
  */
 object BenchmarkMonad {
-  def run[T](f: => T): BenchmarkMonad[T] = {
+  def run[T](f: => T)(implicit tag: Tag): BenchmarkMonad[T, StatisticsByTag] = {
     val time = System.currentTimeMillis
     val value = f
-    BenchmarkMonad(value, Statistics(Seq(System.currentTimeMillis - time)))
+    BenchmarkMonad(value, StatisticsByTag(Map(tag -> Statistics(Seq(System.currentTimeMillis - time)))))
   }
 
-  def runFuture[T](f: => Future[T])(implicit ec: ExecutionContext): Future[BenchmarkMonad[T]] = {
+  def runFuture[T](f: => Future[T])(implicit tag: Tag, ec: ExecutionContext): Future[BenchmarkMonad[T, StatisticsByTag]] = {
     val time = System.currentTimeMillis
     for(value <- f) yield {
-      BenchmarkMonad(value, Statistics(Seq(System.currentTimeMillis - time)))
+      BenchmarkMonad(value, StatisticsByTag(Map(tag -> Statistics(Seq(System.currentTimeMillis - time)))))
     }
   }
 }
@@ -45,7 +46,7 @@ object BenchmarkMonad {
 /**
  * A monad transformer for BenchmarkMonad
  */
-case class BenchmarkMonadT[F[_], A](run: F[BenchmarkMonad[A]]) {
+case class BenchmarkMonadT[F[_], A](run: F[BenchmarkMonad[A, StatisticsByTag]]) {
   self =>
 
   import scalaz.{Functor, Monad}
@@ -55,5 +56,5 @@ case class BenchmarkMonadT[F[_], A](run: F[BenchmarkMonad[A]]) {
   def flatMap[B](f: A => BenchmarkMonadT[F, B])(implicit F: Monad[F]): BenchmarkMonadT[F, B] = new BenchmarkMonadT[F, B](
     F.bind(self.run){ v => f(v.value).run }
   )
-  private def mapO[B](f: BenchmarkMonad[A] => B)(implicit F: Functor[F]) = F.map(run)(f)
+  private def mapO[B](f: BenchmarkMonad[A, StatisticsByTag] => B)(implicit F: Functor[F]) = F.map(run)(f)
 }

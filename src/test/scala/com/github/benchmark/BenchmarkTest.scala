@@ -13,7 +13,8 @@ class BenchmarkTest {
 
   @Test
   def runTest() {
-    val time = run(sleep(100))
+    val stat = run(sleep(100))
+    val time = stat.average
     assertThat(true, is(time >= 100L && time < 120L))
   }
   @Test
@@ -29,7 +30,8 @@ class BenchmarkTest {
     import scala.concurrent.Future
     import scala.concurrent.ExecutionContext.Implicits.global
     val timeFuture = runFuture(Future(sleep(100)))
-    val time = Await.result(timeFuture, Duration.Inf)
+    val stat = Await.result(timeFuture, Duration.Inf)
+    val time = stat.average
     assertThat(true, is(time >= 100L && time < 120L))
   }
   @Test
